@@ -1,7 +1,7 @@
 //go:build tools
 // +build tools
 
-package main
+package iterator
 
 import (
 	_ "github.com/golang/mock/mockgen/model"
