@@ -15,15 +15,15 @@ var (
 	ErrNilNextPage = errors.New("pager: nil passed to Pager.NextPage")
 )
 
-// Iterator represents the state of an iterator
-type Iterator struct {
+// Iterator represents the state of an iterator.
+type Iterator[V any] struct {
 	MaxSize int
 	Token   string
 
 	err         error
 	atLast      bool
 	retrieve    func(pageSize int, pageToken string) (nextPageToken string, err error)
-	retrieveBuf func() interface{}
+	retrieveBuf func() V
 
 	bufLen func() int
 
@@ -32,18 +32,19 @@ type Iterator struct {
 }
 
 // Pageable is implemented by iterators that support paging.
-type Pageable interface {
-	Iterator() *Iterator
+type Pageable[V any] interface {
+	Iterator() *Iterator[V]
 }
 
-type Pager struct {
-	iterator *Iterator
+// Pager represents the state of a pager
+type Pager[V any] struct {
+	iterator *Iterator[V]
 	size     int
 }
 
 // NewIterator returns a new Iterator that will call retrieve to retrieve
-func NewIterator(retrieve func(int, string) (string, error), bufLen func() int, retrieveBuf func() interface{}) (*Iterator, func() error) {
-	i := &Iterator{
+func NewIterator[V any](retrieve func(int, string) (string, error), bufLen func() int, retrieveBuf func() V) (*Iterator[V], func() error) {
+	i := &Iterator[V]{
 		retrieve:    retrieve,
 		retrieveBuf: retrieveBuf,
 		bufLen:      bufLen,
@@ -53,11 +54,11 @@ func NewIterator(retrieve func(int, string) (string, error), bufLen func() int, 
 }
 
 // Len returns the number of items in the buffer.
-func (i *Iterator) Len() int {
+func (i *Iterator[V]) Len() int {
 	return i.bufLen()
 }
 
-func (i *Iterator) next() error {
+func (i *Iterator[V]) next() error {
 	i.nextCalled = true
 
 	if i.err != nil {
@@ -81,7 +82,7 @@ func (i *Iterator) next() error {
 	return i.err
 }
 
-func (i *Iterator) buffer(size int) error {
+func (i *Iterator[V]) buffer(size int) error {
 	token, err := i.retrieve(size, i.Token)
 	if err != nil {
 		i.retrieveBuf()
@@ -89,12 +90,13 @@ func (i *Iterator) buffer(size int) error {
 	}
 
 	i.Token = token
+
 	return nil
 }
 
 // NewPager returns a new Pager that will call retrieve to retrieve
-func NewPager(iter Pageable, size int, token string) *Pager {
-	p := &Pager{iter.Iterator(), size}
+func NewPager[V any](iter Pageable[V], size int, token string) *Pager[V] {
+	p := &Pager[V]{iter.Iterator(), size}
 	p.iterator.Token = token
 
 	if size < 0 {
@@ -105,7 +107,7 @@ func NewPager(iter Pageable, size int, token string) *Pager {
 }
 
 // NextPage retrieves the next page of results and appends them to the buffer.
-func (p *Pager) NextPage(ptr interface{}) (string, error) {
+func (p *Pager[V]) NextPage(ptr *V) (string, error) {
 	p.iterator.nextPageCalled = true
 
 	if p.iterator.err != nil {
